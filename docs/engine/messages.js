@@ -68,10 +68,10 @@ export const STRINGS = {
   },
   cost: {
     invalid: "-1 Point $d is not a valid number of aircraft for cost estimation",
-    over187: "-1 Point Recurring cost exceeds threshold ($90M): $%.1fM",
-    obj187: "Recurring cost meets objective (≤$80M): $%.1fM",
-    over800: "-1 Point Recurring cost exceeds threshold ($60M): $%.1fM",
-    obj800: "Recurring cost meets objective (≤$50M): $%.1fM",
+    over187: "-1 Point Recurring cost exceeds threshold ($115M): $%.1fM",
+    obj187: "Recurring cost meets objective (≤$100M): $%.1fM",
+    over800: "-1 Point Recurring cost exceeds threshold ($75M): $%.1fM",
+    obj800: "Recurring cost meets objective (≤$63M): $%.1fM",
   },
   gear: {
     nose: "Violates Nose gear 90/10 rule: %.1f% (must be between 10% and 20%)",

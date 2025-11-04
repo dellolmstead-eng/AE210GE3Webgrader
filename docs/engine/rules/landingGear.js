@@ -8,27 +8,31 @@ export function runLandingGearChecks(workbook) {
   const gear = workbook.sheets.gear;
 
   const noseRule = asNumber(getCell(gear, "J19"));
-  if (noseRule != null && (noseRule < 10 || noseRule > 20)) {
+  if (Number.isFinite(noseRule) && (noseRule < 9.5 || noseRule > 20)) {
     feedback.push(STRINGS.gear.nose);
     good = false;
   }
 
-  const tipbackUpper = asNumber(getCell(gear, "L19"));
-  const tipbackLower = asNumber(getCell(gear, "L20"));
-  if (tipbackUpper != null && tipbackLower != null && !(tipbackUpper < tipbackLower)) {
+  // Tip-back: MATLAB requires Gear(19,12) < Gear(20,12) (upper angle less than lower) so it won't tail sit.
+  // On the template, the numeric values live at L20 (upper) and L21 (lower).
+  const tipbackUpper = asNumber(getCell(gear, "L20"));
+  const tipbackLower = asNumber(getCell(gear, "L21"));
+  if (Number.isFinite(tipbackUpper) && Number.isFinite(tipbackLower) && !(tipbackUpper < tipbackLower)) {
     feedback.push(STRINGS.gear.tipback);
     good = false;
   }
 
-  const rolloverUpper = asNumber(getCell(gear, "M19"));
-  const rolloverLower = asNumber(getCell(gear, "M20"));
-  if (rolloverUpper != null && rolloverLower != null && !(rolloverUpper < rolloverLower)) {
+  // Rollover: MATLAB requires Gear(19,13) < Gear(20,13) to avoid rollover. Values sit at M20 and M21.
+  const rolloverUpper = asNumber(getCell(gear, "M20"));
+  const rolloverLower = asNumber(getCell(gear, "M21"));
+  if (Number.isFinite(rolloverUpper) && Number.isFinite(rolloverLower) && !(rolloverUpper < rolloverLower)) {
     feedback.push(STRINGS.gear.rollover);
     good = false;
   }
 
-  const rotationSpeed = asNumber(getCell(gear, "N19"));
-  if (rotationSpeed != null && !(rotationSpeed < 200)) {
+  // Rotation: MATLAB expects Gear(19,14) < 200 kts; numeric value is in N20.
+  const rotationSpeed = asNumber(getCell(gear, "N20"));
+  if (Number.isFinite(rotationSpeed) && !(rotationSpeed < 200)) {
     feedback.push(STRINGS.gear.rotation);
     good = false;
   }

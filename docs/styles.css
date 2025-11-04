@@ -195,6 +195,33 @@ main {
   white-space: pre-wrap;
 }
 
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.diff-table th,
+.diff-table td {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 0.5rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.diff-table th {
+  background: rgba(30, 41, 59, 0.6);
+  color: #cbd5f5;
+}
+
+.diff-row-mismatch {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.diff-row-mismatch td {
+  color: #fecaca;
+}
+
 .feedback-log::-webkit-scrollbar {
   width: 8px;
 }

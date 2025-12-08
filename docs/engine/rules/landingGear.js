@@ -7,9 +7,12 @@ export function runLandingGearChecks(workbook) {
   let good = true;
 
   const gear = workbook.sheets.gear;
+  const gearTolPercent = 0.5;
+  const gearTolAngle = 0.1;
+  const gearTolSpeed = 0.5;
 
   const noseRule = asNumber(getCell(gear, "J19"));
-  if (Number.isFinite(noseRule) && (noseRule < 9.5 || noseRule > 20)) {
+  if (Number.isFinite(noseRule) && (noseRule < 10 - gearTolPercent || noseRule > 20 + gearTolPercent)) {
     feedback.push(format(STRINGS.gear.nose, noseRule));
     good = false;
   }
@@ -18,7 +21,7 @@ export function runLandingGearChecks(workbook) {
   // On the template, the numeric values live at L20 (upper) and L21 (lower).
   const tipbackUpper = asNumber(getCell(gear, "L20"));
   const tipbackLower = asNumber(getCell(gear, "L21"));
-  if (Number.isFinite(tipbackUpper) && Number.isFinite(tipbackLower) && !(tipbackUpper < tipbackLower)) {
+  if (Number.isFinite(tipbackUpper) && Number.isFinite(tipbackLower) && !(tipbackUpper < tipbackLower - gearTolAngle)) {
     feedback.push(format(STRINGS.gear.tipback, tipbackUpper, tipbackLower));
     good = false;
   }
@@ -26,25 +29,19 @@ export function runLandingGearChecks(workbook) {
   // Rollover: MATLAB requires Gear(19,13) < Gear(20,13) to avoid rollover. Values sit at M20 and M21.
   const rolloverUpper = asNumber(getCell(gear, "M20"));
   const rolloverLower = asNumber(getCell(gear, "M21"));
-  if (Number.isFinite(rolloverUpper) && Number.isFinite(rolloverLower) && !(rolloverUpper < rolloverLower)) {
+  if (Number.isFinite(rolloverUpper) && Number.isFinite(rolloverLower) && !(rolloverUpper < rolloverLower - gearTolAngle)) {
     feedback.push(format(STRINGS.gear.rollover, rolloverUpper, rolloverLower));
     good = false;
   }
 
-  const rotationAuthority = asNumber(getCell(gear, "N20"));
-  const takeoffSpeed = asNumber(getCell(gear, "N21"));
-  if (!Number.isFinite(rotationAuthority) || !Number.isFinite(takeoffSpeed)) {
-    feedback.push(STRINGS.gear.rotationData);
+  const rotationAuthority = asNumber(getCell(gear, "N20")); // rotation achievable
+  const takeoffSpeed = asNumber(getCell(gear, "N21")); // takeoff speed
+  if (!Number.isFinite(rotationAuthority) || !Number.isFinite(takeoffSpeed) || !(rotationAuthority < takeoffSpeed - gearTolSpeed)) {
+    feedback.push(format(STRINGS.gear.rotationAuthority, rotationAuthority, takeoffSpeed));
     good = false;
-  } else {
-    if (!(rotationAuthority < takeoffSpeed)) {
-      feedback.push(format(STRINGS.gear.rotationAuthority, rotationAuthority, takeoffSpeed));
-      good = false;
-    }
-    if (takeoffSpeed > 200) {
-      feedback.push(format(STRINGS.gear.takeoffSpeed, takeoffSpeed));
-      good = false;
-    }
+  }
+  if (!Number.isFinite(takeoffSpeed) || takeoffSpeed >= 200 + gearTolSpeed) {
+    feedback.push(format(STRINGS.gear.takeoffSpeed, takeoffSpeed));
   }
 
   let delta = 0;

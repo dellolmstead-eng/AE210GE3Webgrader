@@ -2,23 +2,48 @@ import { STRINGS } from "../messages.js";
 import { getCell, getCellByIndex, asNumber } from "../parseUtils.js";
 import { format } from "../format.js";
 
-const CONSTRAINTS = [
-  { label: "MaxMach", row: 3, machMin: 2.0, machObj: 2.2, abEq: 100, psEq: 0, cdxEq: 0 },
-  { label: "CruiseMach", row: 4, machMin: 1.5, machObj: 1.8, abEq: 0, psEq: 0, cdxEq: 0 },
-  { label: "Cmbt Turn1", row: 6, machEq: 1.20, altEq: 30000, nMin: 3.0, nObj: 4.0, abEq: 100, psEq: 0, cdxEq: 0 },
-  { label: "Cmbt Turn2", row: 7, machEq: 0.90, altEq: 10000, nMin: 4.0, nObj: 4.5, abEq: 100, psEq: 0, cdxEq: 0 },
-  { label: "Ps1", row: 8, machEq: 1.15, altEq: 30000, nEq: 1, abEq: 100, psMin: 400, psObj: 500, cdxEq: 0 },
-  { label: "Ps2", row: 9, machEq: 0.90, altEq: 10000, nEq: 1, abEq: 0, psMin: 400, psObj: 500, cdxEq: 0 },
-];
+const COLS = { alt: 20, mach: 21, n: 22, ab: 23, ps: 24, cdx: 25, beta: 19 };
+const tolMach = 0.01;
+const tolAlt = 1;
+const tolN = 0.05;
+const tolAb = 1;
+const tolPs = 1;
+const tolBeta = 0.02;
+const tolCdx = 0.0001;
+const tolDist = 0.05;
+const PAYLOAD_INT_TOL = 0.01;
+const BETA_FALLBACK = null;
 
-const CURVE_ROWS = [
-  { row: 23, label: "MaxMach" },
-  { row: 24, label: "Supercruise" },
-  { row: 26, label: "CombatTurn1" },
-  { row: 27, label: "CombatTurn2" },
-  { row: 28, label: "Ps1" },
-  { row: 29, label: "Ps2" },
-  { row: 32, label: "Takeoff" },
+const CONSTRAINT_SPECS = [
+  { label: "MaxMach", row: 3, altMin: 35000, machMin: 2.0, machObj: 2.2, abEq: 100, psEq: 0, cdxEq: 0, betaDefault: true, curveRow: 23 },
+  { label: "Supercruise", row: 4, altMin: 35000, machMin: 1.5, machObj: 1.8, abEq: 0, psEq: 0, cdxEq: 0, betaDefault: true, curveRow: 24 },
+  { label: "Combat Turn 1", row: 6, machEq: 1.2, altEq: 30000, nMin: 3.0, nObj: 4.0, abEq: 100, psEq: 0, cdxEq: 0, betaDefault: true, curveRow: 26 },
+  { label: "Combat Turn 2", row: 7, machEq: 0.9, altEq: 10000, nMin: 4.0, nObj: 4.5, abEq: 100, psEq: 0, cdxEq: 0, betaDefault: true, curveRow: 27 },
+  { label: "Ps1", row: 8, machEq: 1.15, altEq: 30000, nEq: 1, abEq: 100, psMin: 400, psObj: 500, cdxEq: 0, betaDefault: true, curveRow: 28 },
+  { label: "Ps2", row: 9, machEq: 0.9, altEq: 10000, nEq: 1, abEq: 0, psMin: 400, psObj: 500, cdxEq: 0, betaDefault: true, curveRow: 29 },
+  {
+    label: "Takeoff",
+    row: 12,
+    altEq: 0,
+    machEq: 1.2,
+    nEq: 0.03,
+    abEq: 100,
+    betaEq: 1,
+    cdxAllowed: [0, 0.035],
+    curveRow: 32,
+    distance: { threshold: 3000, objective: 2500 },
+  },
+  {
+    label: "Landing",
+    row: 13,
+    altEq: 0,
+    machEq: 1.3,
+    nEq: 0.5,
+    abEq: 0,
+    betaEq: 1,
+    cdxAllowed: [0, 0.045],
+    distance: { threshold: 5000, objective: 3500 },
+  },
 ];
 
 function interpolate(xList, yList, x) {
@@ -31,17 +56,10 @@ function interpolate(xList, yList, x) {
     return null;
   }
   if (x <= pairs[0].x) {
-    if (pairs.length === 1) {
-      return pairs[0].y;
-    }
-    const [p0, p1] = pairs;
-    const slope = (p1.y - p0.y) / (p1.x - p0.x);
-    return p0.y + slope * (x - p0.x);
+    return pairs[0].y;
   }
   if (x >= pairs[pairs.length - 1].x) {
-    const [p0, p1] = pairs.slice(-2);
-    const slope = (p1.y - p0.y) / (p1.x - p0.x);
-    return p1.y + slope * (x - p1.x);
+    return pairs[pairs.length - 1].y;
   }
   for (let i = 0; i < pairs.length - 1; i += 1) {
     const p0 = pairs[i];
@@ -60,166 +78,215 @@ export function runConstraintChecks(workbook) {
   let failCount = 0;
 
   const main = workbook.sheets.main;
+  const consts = workbook.sheets.consts;
+  const curveMessages = [];
+  const curveFailures = new Set();
+  const distanceObjectives = [];
 
   // Mission radius
   const radius = asNumber(getCell(main, "Y37"));
-  if (radius != null && radius < 375) {
+  if (radius != null && radius < 375 - tolDist) {
     feedback.push(format(STRINGS.constraint.radiusLow, radius));
     failCount += 1;
-  } else if (radius != null && radius >= 410) {
+  } else if (radius != null && radius >= 410 - tolDist) {
     feedback.push(format(STRINGS.constraint.radiusObj, radius));
   }
 
   // Payload
-  const aim120 = asNumber(getCell(main, "AB3"));
-  const aim9 = asNumber(getCell(main, "AB4"));
-  if (aim120 != null && aim120 < 8) {
-    feedback.push(format(STRINGS.constraint.payloadLow, aim120));
+  const aim120RawVal = asNumber(getCell(main, "AB3"));
+  const aim9RawVal = asNumber(getCell(main, "AB4"));
+  const aim120Raw = Number.isFinite(aim120RawVal) ? aim120RawVal : 0;
+  const aim9Raw = Number.isFinite(aim9RawVal) ? aim9RawVal : 0;
+  const aim120Int = Math.abs(aim120Raw - Math.round(aim120Raw)) <= PAYLOAD_INT_TOL ? Math.round(aim120Raw) : null;
+  const aim9Int = Math.abs(aim9Raw - Math.round(aim9Raw)) <= PAYLOAD_INT_TOL ? Math.round(aim9Raw) : null;
+  if (aim120Int == null || aim9Int == null) {
+    feedback.push("Payload counts for AIM-120 and AIM-9 must be integers.");
     failCount += 1;
-  } else if (aim120 != null && aim9 != null && aim9 >= 2) {
-    feedback.push(format(STRINGS.constraint.payloadObj, aim120, aim9));
+  } else if (aim120Int < 8) {
+    feedback.push(format(STRINGS.constraint.payloadLow, aim120Int));
+    failCount += 1;
+  } else if (aim9Int >= 2) {
+    feedback.push(format(STRINGS.constraint.payloadObj, aim120Int, aim9Int));
   }
 
-  // Takeoff distance
-  const takeoffDist = asNumber(getCell(main, "X12"));
-  if (takeoffDist != null && takeoffDist > 3000) {
-    feedback.push(format(STRINGS.constraint.takeoffHigh, takeoffDist));
-    failCount += 1;
-  } else if (takeoffDist != null && takeoffDist <= 2500) {
-    feedback.push(format(STRINGS.constraint.takeoffObj, takeoffDist));
+  // Design point for curves
+  const wsDesign = asNumber(getCell(main, "P13"));
+  const twDesign = asNumber(getCell(main, "Q13"));
+  const wsAxis = [];
+  for (let col = 11; col <= 31; col += 1) {
+    wsAxis.push(getCellByIndex(consts, 22, col));
   }
 
-  // Landing distance
-  const landingDist = asNumber(getCell(main, "X13"));
-  if (landingDist != null && landingDist > 5000) {
-    feedback.push(format(STRINGS.constraint.landingHigh, landingDist));
-    failCount += 1;
-  } else if (landingDist != null && landingDist <= 3500) {
-    feedback.push(format(STRINGS.constraint.landingObj, landingDist));
-  }
+  // Unified constraint/table/curve checks
+  CONSTRAINT_SPECS.forEach((spec) => {
+    const row = spec.row;
+    const mach = asNumber(getCellByIndex(main, row, COLS.mach));
+    const altitude = asNumber(getCellByIndex(main, row, COLS.alt));
+    const n = asNumber(getCellByIndex(main, row, COLS.n));
+    const ab = asNumber(getCellByIndex(main, row, COLS.ab));
+    const ps = asNumber(getCellByIndex(main, row, COLS.ps));
+    const cdx = asNumber(getCellByIndex(main, row, COLS.cdx));
+    const beta = asNumber(getCellByIndex(main, row, COLS.beta));
 
-  // Constraint table checks
-  CONSTRAINTS.forEach((constraint) => {
-    const row = constraint.row;
-    const mach = asNumber(getCellByIndex(main, row, 21));
-    const altitude = asNumber(getCellByIndex(main, row, 20));
-    const n = asNumber(getCellByIndex(main, row, 22));
-    const ab = asNumber(getCellByIndex(main, row, 23));
-    const ps = asNumber(getCellByIndex(main, row, 24));
-    const cdx = asNumber(getCellByIndex(main, row, 25));
-
-    if (constraint.machEq != null) {
-      if (mach == null || Math.abs(mach - constraint.machEq) > 0.01) {
-        feedback.push(format(STRINGS.constraint.machEq, constraint.label, mach ?? NaN, constraint.machEq));
+    if (spec.machEq != null) {
+      if (!Number.isFinite(mach) || Math.abs(mach - spec.machEq) > tolMach) {
+        feedback.push(format(STRINGS.constraint.machEq, spec.label, mach ?? NaN, spec.machEq));
         failCount += 1;
       }
-    } else if (constraint.machMin != null) {
-      if (mach != null && mach < constraint.machMin) {
-        feedback.push(format(STRINGS.constraint.machMin, constraint.label, mach, constraint.machMin));
+    } else if (spec.machMin != null) {
+      if (mach != null && mach < spec.machMin - tolMach) {
+        feedback.push(format(STRINGS.constraint.machMin, spec.label, mach, spec.machMin));
         failCount += 1;
-      } else if (mach != null && constraint.machObj != null && mach >= constraint.machObj) {
-        feedback.push(format(STRINGS.constraint.machObj, constraint.label, constraint.machObj, mach));
+      } else if (mach != null && spec.machObj != null && mach >= spec.machObj - tolMach) {
+        feedback.push(format(STRINGS.constraint.machObj, spec.label, spec.machObj, mach));
       }
     }
 
-    if (constraint.altEq != null) {
-      if (altitude != null && altitude !== constraint.altEq) {
-        feedback.push(format(STRINGS.constraint.altEq, constraint.label, altitude, constraint.altEq));
+    if (spec.altEq != null) {
+      if (altitude != null && Math.abs(altitude - spec.altEq) > tolAlt) {
+        feedback.push(format(STRINGS.constraint.altEq, spec.label, altitude, spec.altEq));
+        failCount += 1;
+      }
+    } else if (spec.altMin != null) {
+      if (altitude != null && altitude < spec.altMin - tolAlt) {
+        feedback.push(format(STRINGS.constraint.altMin, spec.label, altitude, spec.altMin));
         failCount += 1;
       }
     }
 
-    if (constraint.nEq != null) {
-      if (n != null && n !== constraint.nEq) {
-        feedback.push(format(STRINGS.constraint.nEq, constraint.label, n, constraint.nEq));
+    if (spec.nEq != null) {
+      if (n != null && Math.abs(n - spec.nEq) > tolN) {
+        feedback.push(format(STRINGS.constraint.nEq, spec.label, n, spec.nEq));
         failCount += 1;
       }
-    } else if (constraint.nMin != null) {
-      if (n != null && n < constraint.nMin) {
-        feedback.push(format(STRINGS.constraint.nMin, constraint.label, n, constraint.nMin));
+    } else if (spec.nMin != null) {
+      if (n != null && n < spec.nMin - tolN) {
+        feedback.push(format(STRINGS.constraint.nMin, spec.label, n, spec.nMin));
         failCount += 1;
-      } else if (n != null && constraint.nObj != null && n >= constraint.nObj) {
-        feedback.push(format(STRINGS.constraint.nObj, constraint.label, constraint.nObj, n));
-      }
-    }
-
-    if (constraint.abEq != null) {
-      if (ab != null && ab !== constraint.abEq) {
-        feedback.push(format(STRINGS.constraint.abEq, constraint.label, ab, constraint.abEq));
-        failCount += 1;
+      } else if (n != null && spec.nObj != null && n >= spec.nObj - tolN) {
+        feedback.push(format(STRINGS.constraint.nObj, spec.label, spec.nObj, n));
       }
     }
 
-    if (constraint.psEq != null) {
-      if (ps != null && ps !== constraint.psEq) {
-        feedback.push(format(STRINGS.constraint.psEq, constraint.label, ps, constraint.psEq));
+    if (spec.abEq != null) {
+      if (ab != null && Math.abs(ab - spec.abEq) > tolAb) {
+        feedback.push(format(STRINGS.constraint.abEq, spec.label, ab, spec.abEq));
         failCount += 1;
-      }
-    } else if (constraint.psMin != null) {
-      if (ps != null && ps < constraint.psMin) {
-        feedback.push(format(STRINGS.constraint.psMin, constraint.label, ps, constraint.psMin));
-        failCount += 1;
-      } else if (ps != null && constraint.psObj != null && ps >= constraint.psObj) {
-        feedback.push(format(STRINGS.constraint.psObj, constraint.label, constraint.psObj, ps));
       }
     }
 
-    if (constraint.cdxEq != null) {
-      if (cdx == null || Math.abs(cdx - constraint.cdxEq) > 0.001) {
-        feedback.push(format(STRINGS.constraint.cdxEq, constraint.label, cdx ?? NaN, constraint.cdxEq));
+    if (spec.psEq != null) {
+      if (ps != null && Math.abs(ps - spec.psEq) > tolPs) {
+        feedback.push(format(STRINGS.constraint.psEq, spec.label, ps, spec.psEq));
         failCount += 1;
+      }
+    } else if (spec.psMin != null) {
+      if (ps != null && ps < spec.psMin - tolPs) {
+        feedback.push(format(STRINGS.constraint.psMin, spec.label, ps, spec.psMin));
+        failCount += 1;
+      } else if (ps != null && spec.psObj != null && ps >= spec.psObj - tolPs) {
+        feedback.push(format(STRINGS.constraint.psObj, spec.label, spec.psObj, ps));
+      }
+    }
+
+    if (spec.betaEq != null || spec.betaDefault) {
+      const fuelAvailable = asNumber(getCell(main, "O18"));
+      const fuelCapacity = asNumber(getCell(main, "O15"));
+      const targetBeta =
+        spec.betaEq != null
+          ? spec.betaEq
+          : 1 - fuelAvailable / (2 * fuelCapacity);
+      if (!Number.isFinite(targetBeta) || !Number.isFinite(beta) || Math.abs(beta - targetBeta) > tolBeta) {
+        feedback.push(format(STRINGS.constraint.betaEq, spec.label, targetBeta ?? NaN, beta ?? NaN));
+        failCount += 1;
+      }
+    }
+
+    if (spec.cdxEq != null) {
+      if (cdx == null || Math.abs(cdx - spec.cdxEq) > tolCdx) {
+        feedback.push(format(STRINGS.constraint.cdxEq, spec.label, cdx ?? NaN, spec.cdxEq));
+        failCount += 1;
+      }
+    } else if (spec.cdxAllowed) {
+      const match =
+        Number.isFinite(cdx) && spec.cdxAllowed.some((v) => Math.abs(cdx - v) < tolCdx);
+      if (!match) {
+        const allowedList = spec.cdxAllowed
+          .map((v) => v.toFixed(3).replace(/\.?0+$/, ""))
+          .join(", ");
+        feedback.push(format(STRINGS.constraint.cdxAllowed, spec.label, cdx ?? NaN, allowedList));
+        failCount += 1;
+      }
+    }
+
+    if (spec.distance) {
+      const isTakeoff = spec.label === "Takeoff";
+        const isLanding = spec.label === "Landing";
+        const distCell = isTakeoff ? "X12" : isLanding ? "X13" : null;
+        const distValue = distCell ? asNumber(getCell(main, distCell)) : Number.NaN;
+        if (distCell) {
+          if (distValue != null && distValue > spec.distance.threshold + tolDist) {
+            const msg = isTakeoff ? STRINGS.constraint.takeoffHigh : STRINGS.constraint.landingHigh;
+            feedback.push(format(msg, distValue));
+            failCount += 1;
+          } else if (distValue != null && distValue <= spec.distance.objective + tolDist) {
+            const msg = isTakeoff ? STRINGS.constraint.takeoffObj : STRINGS.constraint.landingObj;
+            distanceObjectives.push({ label: spec.label, text: format(msg, distValue) });
+          }
+        }
+    }
+
+    if (spec.curveRow != null && Number.isFinite(wsDesign) && Number.isFinite(twDesign)) {
+      const twCurve = [];
+      for (let col = 11; col <= 31; col += 1) {
+        twCurve.push(getCellByIndex(consts, spec.curveRow, col));
+      }
+      const requiredTW = interpolate(wsAxis, twCurve, wsDesign);
+      if (requiredTW != null && twDesign < requiredTW) {
+        curveFailures.add(spec.label);
+        if (spec.label === "Takeoff") {
+          curveMessages.push(format(STRINGS.constraint.takeoffCurve, twDesign, requiredTW));
+        }
       }
     }
   });
 
+  // Landing W/S limit as a curve-style check
+  if (Number.isFinite(wsDesign)) {
+    const wsLimitLanding = asNumber(getCell(consts, "L33"));
+    if (wsLimitLanding != null && wsDesign > wsLimitLanding) {
+      curveFailures.add("Landing");
+      curveMessages.push(format(STRINGS.constraint.landingCurve, wsDesign, wsLimitLanding));
+    }
+  }
+
+  // Curve failure summary
+  if (curveFailures.size > 0) {
+    const joined = Array.from(curveFailures).join(", ");
+    const plural = curveFailures.size > 1 ? "s" : "";
+    let message = format(STRINGS.constraint.curveFailure, plural, joined);
+    if (curveFailures.size > 6) {
+      message += STRINGS.constraint.curveSuffixMany;
+    } else {
+      message += STRINGS.constraint.curveSuffixFew;
+    }
+    curveMessages.push(message);
+  }
+
+  // Distance objectives only if the curve for that label passed
+  distanceObjectives.forEach(({ label, text }) => {
+    if (!curveFailures.has(label)) {
+      feedback.push(text);
+    }
+  });
+
+  // Append curve messages
+  feedback.push(...curveMessages);
+
+  // Summary and score impact
   if (failCount > 0) {
     feedback.push(STRINGS.constraintSummary);
     delta -= 1;
-  }
-
-  // Curve check (advisory only)
-  try {
-    const consts = workbook.sheets.consts;
-    const wsAxis = [];
-    for (let col = 11; col <= 31; col += 1) {
-      wsAxis.push(getCellByIndex(consts, 22, col));
-    }
-    const wsDesign = asNumber(getCell(main, "P13"));
-    const twDesign = asNumber(getCell(main, "Q13"));
-
-    const failures = [];
-    if (Number.isFinite(wsDesign) && Number.isFinite(twDesign)) {
-      CURVE_ROWS.forEach(({ row, label }) => {
-        const twCurve = [];
-        for (let col = 11; col <= 31; col += 1) {
-          twCurve.push(getCellByIndex(consts, row, col));
-        }
-        const requiredTW = interpolate(wsAxis, twCurve, wsDesign);
-        if (requiredTW != null && twDesign < requiredTW) {
-          failures.push(label);
-        }
-      });
-
-      const wsLimitLanding = asNumber(getCell(consts, "L33"));
-      if (wsLimitLanding != null && wsDesign > wsLimitLanding) {
-        failures.push("Landing");
-        feedback.push(format(STRINGS.constraint.landingCurve, wsDesign, wsLimitLanding));
-      }
-
-      if (failures.length > 0) {
-        const plural = failures.length > 1 ? "s" : "";
-        const joined = failures.join(", ");
-        let message = format(STRINGS.constraint.curveFailure, plural, joined);
-        if (failures.length > 6) {
-          message += STRINGS.constraint.curveSuffixMany;
-        } else {
-          message += STRINGS.constraint.curveSuffixFew;
-        }
-        feedback.push(message);
-      }
-    }
-  } catch (err) {
-    feedback.push(format(STRINGS.constraint.curveError, err.message));
   }
 
   return { delta, feedback };

@@ -4,7 +4,7 @@ import { getCell, asNumber } from "../parseUtils.js";
 export function runStabilityChecks(workbook) {
   const feedback = [];
   let delta = 0;
-  let stable = true;
+  let stabilityPass = true;
 
   const main = workbook.sheets.main;
 
@@ -15,27 +15,27 @@ export function runStabilityChecks(workbook) {
 
   if (!(sm >= -0.1 && sm <= 0.11)) {
     feedback.push(STRINGS.stability.sm);
-    stable = false;
+    stabilityPass = false;
   } else if (sm < 0) {
     feedback.push(STRINGS.stability.smWarn);
   }
 
   if (!(clb < -0.001)) {
     feedback.push(STRINGS.stability.clb);
-    stable = false;
+    stabilityPass = false;
   }
 
   if (!(cnb > 0.002)) {
     feedback.push(STRINGS.stability.cnb);
-    stable = false;
+    stabilityPass = false;
   }
 
   if (!(ratio >= -1 && ratio <= -0.3)) {
     feedback.push(STRINGS.stability.ratio);
-    stable = false;
+    stabilityPass = false;
   }
 
-  if (!stable) {
+  if (!stabilityPass) {
     feedback.push(STRINGS.stability.deduction);
     delta -= 1;
   }

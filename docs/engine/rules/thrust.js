@@ -1,5 +1,6 @@
 import { STRINGS } from "../messages.js";
 import { getCell, asNumber } from "../parseUtils.js";
+import { format } from "../format.js";
 
 const THRUST_CELLS = [
   ["C48", "C49"],
@@ -23,29 +24,33 @@ export function runThrustAndTakeoff(workbook) {
   const miss = workbook.sheets.miss;
   const main = workbook.sheets.main;
 
-  const thrustFail = THRUST_CELLS.some(([topRef, bottomRef]) => {
-    const thrust = asNumber(getCell(miss, topRef));
-    const drag = asNumber(getCell(miss, bottomRef));
-    if (thrust == null || drag == null) {
-      return false;
+  let thrustFailures = 0;
+  THRUST_CELLS.forEach(([dragRef, availableRef]) => {
+    const drag = asNumber(getCell(miss, dragRef));
+    const available = asNumber(getCell(miss, availableRef));
+    if (!Number.isFinite(drag) || !Number.isFinite(available)) {
+      return;
     }
-    return thrust > drag;
+    if (available <= drag) {
+      thrustFailures += 1;
+    }
   });
 
-  if (thrustFail) {
+  if (thrustFailures > 0) {
     delta -= 1;
-    feedback.push(STRINGS.thrustLeg);
-  } else {
-    const takeoffDistance = asNumber(getCell(main, "K38"));
-    const takeoffRequired = asNumber(getCell(main, "X12"));
-    if (
-      takeoffDistance != null &&
-      takeoffRequired != null &&
-      takeoffDistance > takeoffRequired
-    ) {
-      delta -= 1;
-      feedback.push(STRINGS.takeoffRoll);
-    }
+    feedback.push(format(STRINGS.thrustLeg, thrustFailures));
+    return { delta, feedback };
+  }
+
+  const takeoffDistance = asNumber(getCell(main, "K38"));
+  const takeoffRequired = asNumber(getCell(main, "X12"));
+  if (
+    takeoffDistance != null &&
+    takeoffRequired != null &&
+    takeoffDistance > takeoffRequired
+  ) {
+    delta -= 1;
+    feedback.push(STRINGS.takeoffRoll);
   }
 
   return { delta, feedback };

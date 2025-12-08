@@ -10,6 +10,11 @@ const cutoutLine = document.getElementById("cutout-line");
 const feedbackLog = document.getElementById("feedback-log");
 const macroWarning = document.getElementById("macro-warning");
 const statusMessage = document.getElementById("status-message");
+const versionLine = document.getElementById("version-line");
+
+if (versionLine) {
+  versionLine.textContent = `Version: ${RULES.versionLabel}`;
+}
 
 function resetUI() {
   resultsSection.classList.add("hidden");

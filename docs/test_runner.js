@@ -48,37 +48,72 @@ function normalizeLine(line) {
     .replace(/\s+$/g, "");
 }
 
-function normalizeLog(log) {
+function normalizeLog(log, fileName = "") {
   const lines = Array.isArray(log) ? log : log.split(/\r?\n/);
-  const cleaned = lines.map((line) => normalizeLine(line));
+  const lowerFile = (fileName || "").toLowerCase();
+  const cleaned = lines
+    .map((line) => normalizeLine(line))
+    // Drop leading filename or header lines that throw off alignment
+    .filter((line) => {
+      if (!line) return false;
+      const lower = line.toLowerCase();
+      if (lower.endsWith(".xlsm")) return false;
+      if (lowerFile && lower.includes(lowerFile)) return false;
+      if (lower.startsWith("ge 3_") || lower.startsWith("ge 5_")) return false;
+      return true;
+    });
   while (cleaned.length > 0 && cleaned[cleaned.length - 1] === "") {
     cleaned.pop();
   }
   return cleaned;
 }
 
-function compareLogs(expected, actual) {
+function compareLogs(expected, actual, fileName = "") {
   const exp = normalizeLog(expected);
-  const act = normalizeLog(actual);
-  const max = Math.max(exp.length, act.length);
+  const act = normalizeLog(actual, fileName);
   const rows = [];
+  let iExp = 0;
+  let iAct = 0;
   let mismatches = 0;
-
-  for (let i = 0; i < max; i += 1) {
-    const expectedLine = exp[i] ?? "";
-    const actualLine = act[i] ?? "";
-    const match = expectedLine === actualLine;
-    if (!match) {
-      mismatches += 1;
+  const maxLookahead = 10;
+  while (iExp < exp.length || iAct < act.length) {
+    const expectedLine = exp[iExp] ?? "";
+    const actualLine = act[iAct] ?? "";
+    if (expectedLine === actualLine) {
+      rows.push({ index: rows.length + 1, expected: expectedLine, actual: actualLine, match: true });
+      iExp += 1;
+      iAct += 1;
+      continue;
     }
-    rows.push({
-      index: i + 1,
-      expected: expectedLine,
-      actual: actualLine,
-      match,
-    });
+    // attempt to realign: look ahead in actual for expectedLine
+    let found = false;
+    for (let offset = 1; offset <= maxLookahead && iAct + offset < act.length; offset += 1) {
+      if (act[iAct + offset] === expectedLine) {
+        // record the skipped actual lines as mismatches
+        for (let k = 0; k < offset; k += 1) {
+          rows.push({
+            index: rows.length + 1,
+            expected: expectedLine,
+            actual: act[iAct + k],
+            match: false,
+          });
+          mismatches += 1;
+        }
+        iAct += offset;
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      // after realignment, loop will now see a match in next iteration
+      continue;
+    }
+    // no realignment; count mismatch and advance both
+    rows.push({ index: rows.length + 1, expected: expectedLine, actual: actualLine, match: false });
+    mismatches += 1;
+    iExp += 1;
+    iAct += 1;
   }
-
   return { rows, mismatches };
 }
 
@@ -93,7 +128,7 @@ function renderDiff(rows) {
 
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  ["Line", "Expected", "Actual"].forEach((label) => {
+  ["Line", "Matlab", "Webgrader"].forEach((label) => {
     const th = document.createElement("th");
     th.textContent = label;
     headerRow.appendChild(th);
@@ -147,7 +182,7 @@ async function runComparison(file) {
     const result = gradeWorkbook(workbook, RULES);
     const actualLog = result.feedbackLog.split(/\r?\n/);
 
-    const { rows, mismatches } = compareLogs(baseline.logLines, actualLog);
+    const { rows, mismatches } = compareLogs(baseline.logLines, actualLog, file.name);
     const outcomeText =
       mismatches === 0
         ? `✅ Match: ${file.name}`
@@ -192,7 +227,7 @@ dropZone.addEventListener("drop", (event) => {
 
 loadBaselines()
   .then(() => {
-    showStatus("Baseline data loaded. Upload a file to compare.", "info");
+    showStatus("Baseline data loaded (matlab_expected.json). Upload a file to compare.", "info");
   })
   .catch((error) => {
     console.error(error);

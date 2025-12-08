@@ -20,6 +20,10 @@ function normalize(cell) {
   if (!cell) {
     return null;
   }
+  // Treat Excel error strings as null so downstream checks can handle them
+  if (typeof cell.v === "string" && /^#(DIV\/0!|VALUE!|REF!|NAME\?|NUM!|NULL!|N\/A)$/i.test(cell.v.trim())) {
+    return null;
+  }
   if (typeof cell.v === "number") {
     return cell.v;
   }

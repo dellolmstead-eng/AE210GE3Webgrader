@@ -1,0 +1,15 @@
+GE3 Autograder Log
+Script Name: GE3_autograde_Olmstead_Fall_2025_v2.m
+Run Date: 2025-12-02 15:08:24
+Analyzed Folder: C:\Autograder files\FA25 GE3 final
+Files to Analyze (1):
+  - GE 3_ AATF Design Iteration 1 & Cutout_c28diego.romero-rojas_attempt_2025-11-10-15-38-12_Romero-Rojas_Diego_Jet11.xlsm
+
+GE 3_ AATF Design Iteration 1 & Cutout_c28diego.romero-rojas_attempt_2025-11-10-15-38-12_Romero-Rojas_Diego_Jet11.xlsm
+Payload meets objective: 8 AIM-120s + 2 AIM-9s
+Stealth shaping violations:
+Pitch control surface trailing edge sweep 52.5° must be parallel to the wing leading edge 40.0° (+/- 5.0°).
+Takeoff speed high: 200.9 kts (recommend < 200 kts)
+Jet11 Score is 10 out of 10
+Cutout is 5 out of 5
+

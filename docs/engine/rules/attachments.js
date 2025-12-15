@@ -302,8 +302,8 @@ export function runAttachmentChecks(workbook) {
     feedback.splice(stealthStart, 0, "Stealth shaping violations:");
   }
 
-  // Single deduction for geometry/attachment issues (stealth only does not change score)
-  const delta = disconnected > 0 || failures > 0 ? -1 : 0;
+  // Single deduction for geometry/attachment issues (stealth folded into the same point)
+  const delta = disconnected > 0 || failures > 0 || stealthIssues > 0 ? -1 : 0;
 
   return { delta, feedback };
 }

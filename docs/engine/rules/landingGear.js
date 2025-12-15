@@ -42,6 +42,7 @@ export function runLandingGearChecks(workbook) {
   }
   if (!Number.isFinite(takeoffSpeed) || takeoffSpeed >= 200 + gearTolSpeed) {
     feedback.push(format(STRINGS.gear.takeoffSpeed, takeoffSpeed));
+    good = false;
   }
 
   let delta = 0;

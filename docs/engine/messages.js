@@ -107,7 +107,7 @@ export const STRINGS = {
     rotationAuthority: "Violates takeoff rotation speed: %.1f kts (must be < %.1f kts)",
     rotationData:
       "Unable to verify takeoff rotation capability due to missing gear data (check N20 and N21).",
-    takeoffSpeed: "Takeoff speed high: %.1f kts (recommend < 200 kts)",
+    takeoffSpeed: "Violates takeoff speed limit: %.1f kts (must be ≤ 200 kts)",
     deduction: "-1 point Landing gear geometry outside limits; see notes above and the \"Gear\" tab.",
   },
   summary: {

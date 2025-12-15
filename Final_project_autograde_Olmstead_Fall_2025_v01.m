@@ -1733,6 +1733,7 @@ uicontrol('Parent', d, ...
             assignmentTitle = 'Final Project: AATF Design Iteration 1 & Cutout [Total Pts: 15 Score]';
 
             % Write header (username only for identification)
+            % Column order: Username | Assignment score | Grading Notes | Notes Format | Feedback to Learner | Feedback Format
             fprintf(fid, '"Username","%s","Grading Notes","Notes Format","Feedback to Learner","Feedback Format"\n', assignmentTitle);
 
             for i = 1:numel(files)
@@ -1763,9 +1764,9 @@ uicontrol('Parent', d, ...
                 fbText = strrep(fbText, '"', '&quot;');
                 fbText = strrep(fbText, newline, '<br>');
 
-                % Write row
-                fprintf(fid, '"%s","%.1f","","","%s","SMART_TEXT"\n', ...
-                    username, score, fbText);
+                % Write row: Username | Score | Grading Notes | Notes Format | Feedback | Feedback Format
+                fprintf(fid, '"%s","%.1f","","","%s","%s"\n', ...
+                    username, score, fbText, 'SMART_TEXT');
             end
 
             fclose(fid);

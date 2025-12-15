@@ -9,6 +9,7 @@
 
 %--------------------------------------------------------------------------
 % AE210 GE3 Autograder Script – Fall 2025
+% Version: v2.0
 %
 % Description:
 % This script automates grading for AE210 preliminary Design Project 
@@ -966,9 +967,12 @@ elseif vtTilt < 85
     [logText, stealthFailures, stealthHeaderShown] = requireParallelAngle(logText, stealthFailures, stealthHeaderShown, vtTrailingAngle, wingLeadingAngle, STEALTH_TOL, 'Vertical tail trailing edge sweep %.1f° must be parallel to the wing leading edge %.1f° (+/- %.1f°).\n');
 end
 
-% Do not penalize the geometry point for stealth-only failures.
+% Fold stealth failures into geometry (max 1 point total)
+if stealthFailures > 0
+    geometryFailures = geometryFailures + 1;
+end
 if geometryFailures > 0
-    logText = logf(logText, '-1 Point Geometry/attachment issues detected; see notes above.\n');
+    logText = logf(logText, '-1 Point Geometry/attachment/stealth issues detected; see notes above.\n');
     pt=pt-1;
 end
 
@@ -1095,9 +1099,10 @@ if isnan(rotationAuthority) || isnan(takeoffSpeed) || rotationAuthority >= takeo
     logText = logf(logText, 'Violates takeoff rotation speed: %.1f kts (must be < %.1f kts)\n', rotationAuthority, takeoffSpeed);
     LandingGearGood = 0;
 end
-% Advisory only; no deduction
+% Deduct if takeoff speed exceeds 200 kts
 if isnan(takeoffSpeed) || takeoffSpeed >= 200 + gearTolSpeed
-    logText = logf(logText, 'Takeoff speed high: %.1f kts (recommend < 200 kts)\n', takeoffSpeed);
+    logText = logf(logText, 'Violates takeoff speed limit: %.1f kts (must be ≤ 200 kts)\n', takeoffSpeed);
+    LandingGearGood = 0;
 end
 
 if LandingGearGood ~= 1

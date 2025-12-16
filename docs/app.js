@@ -11,6 +11,8 @@ const feedbackLog = document.getElementById("feedback-log");
 const macroWarning = document.getElementById("macro-warning");
 const statusMessage = document.getElementById("status-message");
 const versionLine = document.getElementById("version-line");
+const sessionCounter = document.getElementById("session-counter");
+let gradedCount = 0;
 
 if (versionLine) {
   versionLine.textContent = `Version: ${RULES.versionLabel}`;
@@ -24,6 +26,14 @@ function resetUI() {
   scoreLine.textContent = "";
   cutoutLine.textContent = "";
   feedbackLog.textContent = "";
+}
+
+function updateSessionCounter(fileName = "") {
+  if (!sessionCounter) return;
+  const label = fileName
+    ? `Files graded this session: ${gradedCount} (last: ${fileName})`
+    : `Files graded this session: ${gradedCount}`;
+  sessionCounter.textContent = label;
 }
 
 function showStatus(text, level = "info") {
@@ -66,6 +76,8 @@ async function gradeFile(file) {
 
     resultsSection.classList.remove("hidden");
     showStatus("Grading complete.", "info");
+    gradedCount += 1;
+    updateSessionCounter(file.name);
   } catch (err) {
     console.error(err);
     showStatus(`Error: ${err?.message || "Unable to grade this file."}`, "error");
@@ -98,3 +110,5 @@ dropZone.addEventListener("drop", (event) => {
   dropZone.classList.remove("dragging");
   handleFiles(event.dataTransfer.files);
 });
+
+updateSessionCounter();

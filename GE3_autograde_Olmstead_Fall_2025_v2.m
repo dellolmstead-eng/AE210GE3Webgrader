@@ -281,63 +281,63 @@ time = MissionArray(7, colIdx);
 
 %%%%%%%%%%%%%%% Leg 1: Preflight & Takeoff
 if abs(alt(1)) > missionTolAlt || abs(ab(1) - 100) > missionTolAlt
-    logText = logf(logText, 'Leg 1: Altitude must be 0 and AB = 100\n');
+    logText = logf(logText, 'Leg 1: Altitude must be 0 and AB = 100 (found alt=%.1f, AB=%.1f)\n', alt(1), ab(1));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 2: Acceleration to climb
 if ~(alt(2) >= alt(1) - missionTolAlt && alt(2) <= alt(3) + missionTolAlt)
-    logText = logf(logText, 'Leg 2: Altitude must be between Leg 1 and Leg 3\n');
+    logText = logf(logText, 'Leg 2: Altitude must be between Leg 1 and Leg 3 (found alt2=%.1f, alt1=%.1f, alt3=%.1f)\n', alt(2), alt(1), alt(3));
     MissionInputFailed = MissionInputFailed + 1;
 end
 if ~(mach(2) >= mach(1) - missionTolMach && mach(2) <= mach(3) + missionTolMach)
-    logText = logf(logText, 'Leg 2: Mach must be between Leg 1 and Leg 3\n');
+    logText = logf(logText, 'Leg 2: Mach must be between Leg 1 and Leg 3 (found mach2=%.2f, mach1=%.2f, mach3=%.2f)\n', mach(2), mach(1), mach(3));
     MissionInputFailed = MissionInputFailed + 1;
 end
 if abs(ab(2)) > missionTolAlt
-    logText = logf(logText, 'Leg 2: AB must be 0\n');
+    logText = logf(logText, 'Leg 2: AB must be 0 (found AB=%.1f)\n', ab(2));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 3: Climb to cruise
 if alt(3) < 35000 - missionTolAlt || abs(mach(3) - 0.9) > missionTolMach || abs(ab(3)) > missionTolAlt
-    logText = logf(logText, 'Leg 3: Must be ≥35,000 ft, Mach = 0.9, AB = 0\n');
+    logText = logf(logText, 'Leg 3: Must be ≥35,000 ft, Mach = 0.9, AB = 0 (found alt=%.1f, mach=%.2f, AB=%.1f)\n', alt(3), mach(3), ab(3));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 4: Subsonic cruise
 if alt(4) < 35000 - missionTolAlt || abs(mach(4) - 0.9) > missionTolMach || abs(ab(4)) > missionTolAlt
-    logText = logf(logText, 'Leg 4: Must be ≥35,000 ft, Mach = 0.9, AB = 0\n');
+    logText = logf(logText, 'Leg 4: Must be ≥35,000 ft, Mach = 0.9, AB = 0 (found alt=%.1f, mach=%.2f, AB=%.1f)\n', alt(4), mach(4), ab(4));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 5: Supercruise to target
 if alt(5) < 35000 - missionTolAlt || abs(mach(5) - ConstraintsMach) > missionTolMach || abs(ab(5)) > missionTolAlt || dist(5) < 150 - missionTolDist
-    logText = logf(logText, 'Leg 5: Must be ≥35,000 ft, Mach = Contraints block Supercruise Mach (cell U4), AB = 0, Distance ≥ 150 nm\n');
+    logText = logf(logText, 'Leg 5: Must be ≥35,000 ft, Mach = Contraints block Supercruise Mach (cell U4), AB = 0, Distance ≥ 150 nm (found alt=%.1f, mach=%.2f, AB=%.1f, dist=%.1f)\n', alt(5), mach(5), ab(5), dist(5));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 6: Combat
-if alt(6) < 30000 - missionTolAlt || mach(6) < 1.2 - missionTolMach || abs(ab(6) - 100) > missionTolAlt || time(6) < 2 - missionTolTime
-    logText = logf(logText, 'Leg 6: Must be ≥30,000 ft, Mach ≥ 1.2, AB = 100, Time ≥ 2 min\n');
+if abs(alt(6) - 30000) > missionTolAlt || mach(6) < 1.2 - missionTolMach || abs(ab(6) - 100) > missionTolAlt || time(6) < 2 - missionTolTime
+    logText = logf(logText, 'Leg 6: Must be ≥30,000 ft, Mach ≥ 1.2, AB = 100, Time ≥ 2 min (found alt=%.1f, mach=%.2f, AB=%.1f, time=%.2f)\n', alt(6), mach(6), ab(6), time(6));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 7: Supercruise egress
 if alt(7) < 35000 - missionTolAlt || abs(mach(7) - ConstraintsMach) > missionTolMach || abs(ab(7)) > missionTolAlt || dist(7) < 150 - missionTolDist
-    logText = logf(logText, 'Leg 7: Must be ≥35,000 ft, Mach = Contraints block Supercruise Mach (cell U4), AB = 0, Distance ≥ 150 nm\n');
+    logText = logf(logText, 'Leg 7: Must be ≥35,000 ft, Mach = Contraints block Supercruise Mach (cell U4), AB = 0, Distance ≥ 150 nm (found alt=%.1f, mach=%.2f, AB=%.1f, dist=%.1f)\n', alt(7), mach(7), ab(7), dist(7));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 8: Subsonic return cruise
 if alt(8) < 35000 - missionTolAlt || abs(mach(8) - 0.9) > missionTolMach || abs(ab(8)) > missionTolAlt
-    logText = logf(logText, 'Leg 8: Must be ≥35,000 ft, Mach = 0.9, AB = 0\n');
+    logText = logf(logText, 'Leg 8: Must be ≥35,000 ft, Mach = 0.9, AB = 0 (found alt=%.1f, mach=%.2f, AB=%.1f)\n', alt(8), mach(8), ab(8));
     MissionInputFailed = MissionInputFailed + 1;
 end
 
 %%%%%%%%%%%%%%% Leg 9: Descent
 if abs(alt(9) - 10000) > missionTolAlt || abs(mach(9) - 0.4) > missionTolMach || abs(ab(9)) > missionTolAlt || abs(time(9) - 20) > missionTolTime
-    logText = logf(logText, 'Leg 9: Must be 10,000 ft, Mach = 0.4, AB = 0, Time = 20 min\n');
+    logText = logf(logText, 'Leg 9: Must be 10,000 ft, Mach = 0.4, AB = 0, Time = 20 min (found alt=%.1f, mach=%.2f, AB=%.1f, time=%.2f)\n', alt(9), mach(9), ab(9), time(9));
     MissionInputFailed = MissionInputFailed + 1;
 end
 

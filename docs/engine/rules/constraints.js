@@ -1,6 +1,7 @@
 import { STRINGS } from "../messages.js";
 import { getCell, getCellByIndex, asNumber } from "../parseUtils.js";
 import { format } from "../format.js";
+import { pchip } from "../pchip.js";
 
 const COLS = { alt: 20, mach: 21, n: 22, ab: 23, ps: 24, cdx: 25, beta: 19 };
 const tolMach = 0.01;
@@ -45,32 +46,6 @@ const CONSTRAINT_SPECS = [
     distance: { threshold: 5000, objective: 3500 },
   },
 ];
-
-function interpolate(xList, yList, x) {
-  const pairs = xList
-    .map((value, idx) => ({ x: asNumber(value), y: asNumber(yList[idx]) }))
-    .filter((pair) => Number.isFinite(pair.x) && Number.isFinite(pair.y))
-    .sort((a, b) => a.x - b.x);
-
-  if (pairs.length === 0) {
-    return null;
-  }
-  if (x <= pairs[0].x) {
-    return pairs[0].y;
-  }
-  if (x >= pairs[pairs.length - 1].x) {
-    return pairs[pairs.length - 1].y;
-  }
-  for (let i = 0; i < pairs.length - 1; i += 1) {
-    const p0 = pairs[i];
-    const p1 = pairs[i + 1];
-    if (x >= p0.x && x <= p1.x) {
-      const slope = (p1.y - p0.y) / (p1.x - p0.x);
-      return p0.y + slope * (x - p0.x);
-    }
-  }
-  return null;
-}
 
 export function runConstraintChecks(workbook) {
   const feedback = [];
@@ -241,7 +216,7 @@ export function runConstraintChecks(workbook) {
       for (let col = 11; col <= 31; col += 1) {
         twCurve.push(getCellByIndex(consts, spec.curveRow, col));
       }
-      const requiredTW = interpolate(wsAxis, twCurve, wsDesign);
+      const requiredTW = pchip(wsAxis, twCurve, wsDesign);
       if (requiredTW != null && twDesign < requiredTW) {
         curveFailures.add(spec.label);
         if (spec.label === "Takeoff") {
